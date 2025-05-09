@@ -1,103 +1,197 @@
-import Image from "next/image";
+'use client'
+import React, { useEffect, useState } from 'react'
+import axios from 'axios'
+
+const api = axios.create({
+  baseURL: 'http://localhost:8080',
+  auth: {
+    username: 'admin',
+    password: 'password'
+  },
+  headers: {
+    'Content-Type': 'application/json'
+  }
+})
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [playlists, setPlaylists] = useState([])
+  const [form, setForm] = useState({ nombre: '', descripcion: '', canciones: [] })
+  const [selectedName, setSelectedName] = useState('')
+  const [detail, setDetail] = useState(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  const fetchAll = async () => {
+    setLoading(true)
+    try {
+      const res = await api.get('/lists')
+      setPlaylists(res.data)
+    } catch (e) {
+      alert('Error al cargar las listas.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchOne = async () => {
+    setLoading(true)
+    try {
+      const res = await api.get(`/lists/${selectedName}`)
+      setDetail(res.data)
+      setError('')
+    } catch {
+      setDetail(null)
+      setError('Lista no encontrada')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const create = async () => {
+    if (!form.nombre.trim()) return alert('Debes ingresar un nombre.')
+    try {
+      await api.post('/lists', form)
+      await fetchAll()
+      setForm({ nombre: '', descripcion: '', canciones: [] })
+      alert('Lista creada exitosamente.')
+    } catch {
+      alert('Error al crear la lista.')
+    }
+  }
+
+  const remove = async (name) => {
+    if (!confirm(`¿Eliminar la lista "${name}"?`)) return
+    try {
+      await api.delete(`/lists/${name}`)
+      await fetchAll()
+      alert('Lista eliminada correctamente.')
+    } catch {
+      alert('Error al eliminar la lista.')
+    }
+  }
+
+  const updateSong = (index, field, value) => {
+    const updated = [...form.canciones]
+    updated[index][field] = value
+    setForm({ ...form, canciones: updated })
+  }
+
+  useEffect(() => {
+    fetchAll()
+  }, [])
+
+  return (
+    <div className="p-6 max-w-5xl mx-auto space-y-10 bg-gradient-to-b from-blue-100 to-white">
+      <header className="text-center space-y-2">
+        <h1 className="text-4xl font-bold text-indigo-700 tracking-tight">🎧 Playlist Manager</h1>
+        <p className="text-gray-600">Crea, busca y gestiona tus listas de reproducción</p>
+      </header>
+
+      {loading && <p className="text-center text-blue-600 font-medium">Cargando...</p>}
+
+      {/* Crear nueva lista */}
+      <section className="border-2 rounded-lg shadow-lg p-6 bg-white">
+        <h2 className="text-2xl font-semibold mb-4 text-indigo-600">Crear nueva lista</h2>
+
+        <input
+          className="w-full border-2 border-gray-300 p-2 rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          placeholder="Nombre de la lista"
+          value={form.nombre}
+          onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+        />
+        <input
+          className="w-full border-2 border-gray-300 p-2 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          placeholder="Descripción"
+          value={form.descripcion}
+          onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
+        />
+
+        <h3 className="font-medium mb-2 text-indigo-500">Canciones</h3>
+        {form.canciones.map((cancion, index) => (
+          <div key={index} className="grid grid-cols-5 gap-2 mb-2">
+            {['titulo', 'artista', 'album', 'anno', 'genero'].map((field) => (
+              <input
+                key={field}
+                className="border-2 border-gray-300 p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder={field}
+                value={cancion[field]}
+                onChange={(e) => updateSong(index, field, e.target.value)}
+              />
+            ))}
+          </div>
+        ))}
+
+        <div className="flex gap-2 mt-4">
+          <button
+            className="px-4 py-2 bg-indigo-200 text-indigo-700 rounded-lg hover:bg-indigo-300 transition duration-200"
+            onClick={() =>
+              setForm({
+                ...form,
+                canciones: [...form.canciones, { titulo: '', artista: '', album: '', anno: '', genero: '' }]
+              })
+            }
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            + Añadir canción
+          </button>
+
+          <button
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-200"
+            onClick={create}
           >
-            Read our docs
-          </a>
+            Crear lista
+          </button>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+      </section>
+
+      {/* Buscar lista */}
+      <section className="border-2 rounded-lg shadow-lg p-6 bg-white">
+        <h2 className="text-2xl font-semibold mb-4 text-indigo-600">Buscar lista por nombre</h2>
+        <div className="flex gap-2 mb-2">
+          <input
+            className="border-2 border-gray-300 p-2 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="Nombre exacto"
+            value={selectedName}
+            onChange={(e) => setSelectedName(e.target.value)}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          <button
+            onClick={fetchOne}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-200"
+          >
+            Buscar
+          </button>
+        </div>
+
+        {error && <p className="text-red-500">{error}</p>}
+        {detail && (
+          <pre className="bg-gray-100 p-4 rounded-lg text-sm overflow-auto text-indigo-600">
+            {JSON.stringify(detail, null, 2)}
+          </pre>
+        )}
+      </section>
+
+      {/* Listas registradas */}
+      <section className="border-2 rounded-lg shadow-lg p-6 bg-white">
+        <h2 className="text-2xl font-semibold mb-4 text-indigo-600">Listas registradas</h2>
+        {playlists.length === 0 ? (
+          <p className="text-gray-500">No hay listas aún.</p>
+        ) : (
+          <ul className="space-y-2">
+            {playlists.map((p) => (
+              <li key={p.id} className="flex justify-between items-center p-4 border-2 border-gray-300 rounded-lg hover:bg-indigo-50 transition duration-200">
+                <span className="text-indigo-700 font-medium">
+                  <strong>{p.nombre}</strong> — <span className="text-gray-600">{p.descripcion}</span>
+                </span>
+                <button
+                  onClick={() => remove(p.nombre)}
+                  className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-200"
+                >
+                  Eliminar
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
-  );
+  )
 }
